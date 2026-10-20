@@ -5,7 +5,10 @@ from pathlib import Path
 
 def load_predicted_pose(project_root, folder_id, image_id, object_id):
     pose_path = (
-        project_root / "npy" / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}.npy"
+        project_root
+        / "outputs"
+        / f"{folder_id}_{image_id}_obj_{object_id:06d}"
+        / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}.npy"
     )
 
     pose = np.load(pose_path)

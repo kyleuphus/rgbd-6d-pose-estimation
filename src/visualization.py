@@ -13,7 +13,10 @@ image_id = "000001"
 object_id = 1
 
 pose_path = (
-    project_root / "npy" / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}.npy"
+    project_root
+    / "outputs"
+    / f"{folder_id}_{image_id}_obj_{object_id:06d}"
+    / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}.npy"
 )
 pose = np.load(pose_path)
 
@@ -68,7 +71,8 @@ def draw_pose_axes(
 
     write_path = (
         project_root
-        / "npy"
+        / "outputs"
+        / f"{folder_id}_{image_id}_obj_{object_id:06d}"
         / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}_annotated.png"
     )
     cv2.imwrite(write_path, img_bgr)
@@ -119,7 +123,8 @@ def draw_reference(
 
     write_path = (
         project_root
-        / "npy"
+        / "outputs"
+        / f"{folder_id}_{image_id}_obj_{object_id:06d}"
         / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}_reference.png"
     )
     cv2.imwrite(write_path, img_bgr)
@@ -134,7 +139,8 @@ def create_comparison(
 
     write_path = (
         project_root
-        / "npy"
+        / "outputs"
+        / f"{folder_id}_{image_id}_obj_{object_id:06d}"
         / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}_comparison.png"
     )
 
