@@ -20,4 +20,4 @@ def calculate_error(project_root, folder_id, image_id, object_id):
     return error
 
 
-print(calculate_error(project_root, folder_id, image_id, object_id), "cm")
+print(calculate_error(project_root, folder_id, image_id, object_id), "mm")
