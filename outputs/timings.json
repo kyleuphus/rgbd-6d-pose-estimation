@@ -1,0 +1,18 @@
+{
+  "selected": 50,
+  "object_setup_seconds": {
+    "1": 11.905775662999986,
+    "6": 8.899782941000012,
+    "14": 10.51352183500012,
+    "19": 9.044982482000023,
+    "20": 10.252234438999949
+  },
+  "successful": 50,
+  "failed": 0,
+  "elapsed_seconds": 274.02513894000003,
+  "mean_registration_seconds": 4.308681777719999,
+  "mean_registration_after_first_per_object_seconds": 4.309085607555547,
+  "import_seconds": 6.331615382999871,
+  "gpu": "Tesla T4",
+  "model_setup_seconds": 0.6229532699999254
+}

@@ -1,14 +1,7 @@
 import math
 import numpy as np
 
-from pathlib import Path
 from pose_io import load_predicted_pose, load_reference_pose
-
-project_root = Path(__file__).resolve().parents[1]
-dataset_root = project_root / "data" / "ycbv"
-folder_id = "000048"
-image_id = "000001"
-object_id = 1
 
 
 def rotation_error_degrees(R_predicted, R_reference):
@@ -37,6 +30,3 @@ def calculate_error(project_root, folder_id, image_id, object_id):
     rotation_error = rotation_error_degrees(R_predicted, R_reference)
     translation_error = translation_error_mm(t_predicted, t_reference)
     return (rotation_error, translation_error)
-
-
-print(calculate_error(project_root, folder_id, image_id, object_id))
