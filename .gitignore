@@ -1,2 +1,5 @@
 .DS_Store
 *.dSYM/
+venv/
+.venv/
+pyrightconfig.json

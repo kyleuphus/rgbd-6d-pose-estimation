@@ -1,0 +1,48 @@
+from pathlib import Path
+import sys
+
+import numpy as np
+from numpy.typing import NDArray
+import trimesh
+
+from data_types import RGBDFrame
+
+foundationpose_dir = Path(__file__).resolve().parents[2] / "FoundationPose"
+sys.path.insert(0, str(foundationpose_dir))
+
+from estimater import FoundationPose, ScorePredictor, PoseRefinePredictor
+
+
+class FoundationPoseBackend:
+    def __init__(self, mesh: trimesh.Trimesh):
+        self.mesh = mesh
+        self.scorer = ScorePredictor()
+        self.refiner = PoseRefinePredictor()
+
+        self.estimator = FoundationPose(
+            model_pts=mesh.vertices,
+            model_normals=mesh.vertex_normals,
+            mesh=mesh,
+            scorer=self.scorer,
+            refiner=self.refiner,
+            debug=0,
+            debug_dir=str(
+                Path(__file__).resolve().parents[1] / "outputs" / "foundationspose"
+            ),
+        )
+
+    def estimate(
+        self, frame: RGBDFrame, mask: NDArray[np.bool_]
+    ) -> NDArray[np.float32]:
+        if mask.shape != frame.depth.shape:
+            raise ValueError("Mask must match the depth image dimensions")
+
+        pose = self.estimator.register(
+            K=frame.intrinsics.K,
+            rgb=frame.rgb,
+            depth=frame.depth,
+            ob_mask=mask,
+            iteration=5,
+        )
+
+        return np.asarray(pose, dtype=np.float32)
