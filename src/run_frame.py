@@ -20,9 +20,10 @@ def run_frame(folder_id, image_id, object_id):
     mesh = load_mesh(dataset_root, object_id)
 
     segmenter = construct_model(project_root)
-    mask = segment_images(
+    masks = segment_images(
         segmenter, folder_id, image_id, [object_id], project_root, save_mask=True
-    )[object_id,]
+    )
+    mask = masks[object_id]
 
     backend = FoundationPoseBackend(mesh)
     pose = backend.estimate(frame, mask)
