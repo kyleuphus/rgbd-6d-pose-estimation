@@ -1,29 +1,10 @@
 import numpy as np
 import cv2
+import json
 
 from ycb_video import load_intrinsics, load_frame
 from pathlib import Path
 from pose_io import load_predicted_pose, load_reference_pose
-
-
-project_root = Path(__file__).resolve().parents[1]
-dataset_root = project_root / "data" / "ycbv"
-folder_id = "000048"
-image_id = "000001"
-object_id = 1
-
-pose_path = (
-    project_root
-    / "outputs"
-    / f"{folder_id}_{image_id}_obj_{object_id:06d}"
-    / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}.npy"
-)
-pose = np.load(pose_path)
-
-intrinsics = load_intrinsics(dataset_root, folder_id, image_id)
-
-frame = load_frame(dataset_root, folder_id, image_id)
-rgb = frame.rgb.copy()
 
 
 def draw_pose_axes(
@@ -68,6 +49,19 @@ def draw_pose_axes(
     cv2.line(img=rgb, pt1=pixels[0], pt2=pixels[3], color=(0, 0, 255))
 
     img_bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+
+    cv2.rectangle(img_bgr, (8, 8), (130, 45), (0, 0, 0), -1)
+
+    cv2.putText(
+        img_bgr,
+        "Predicted",
+        (15, 35),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA,
+    )
 
     write_path = (
         project_root
@@ -117,9 +111,22 @@ def draw_reference(
 
         for endpoint, color in zip(pixels[1:], colors):
             if endpoint is not None:
-                cv2.line(img=rgb, pt1=origin, pt2=endpoint, color=color)
+                cv2.line(img=img, pt1=origin, pt2=endpoint, color=color)
 
-    img_bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+    cv2.rectangle(img_bgr, (8, 8), (140, 45), (0, 0, 0), -1)
+
+    cv2.putText(
+        img_bgr,
+        "Reference",
+        (15, 35),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA,
+    )
 
     write_path = (
         project_root
@@ -147,18 +154,50 @@ def create_comparison(
     cv2.imwrite(write_path, combined)
 
 
-annotated = draw_pose_axes(
-    rgb,
-    intrinsics,
-    project_root,
-    folder_id,
-    image_id,
-    object_id,
-    axis_length=0.05,
-)
+def main():
+    project_root = Path(__file__).resolve().parents[1]
+    dataset_root = project_root / "data" / "ycbv"
 
-reference = draw_reference(
-    rgb, intrinsics, project_root, folder_id, image_id, object_id, axis_length=0.05
-)
+    cases = json.loads(
+        (project_root / "outputs" / "cases.json").read_text(encoding="utf-8")
+    )
 
-create_comparison(annotated, reference, project_root, folder_id, image_id, object_id)
+    for index, case in enumerate(cases, start=1):
+        folder_id = f"{int(case['folder_id']):06d}"
+        image_id = f"{int(case['image_id']):06d}"
+        object_id = int(case["object_id"])
+
+        frame = load_frame(dataset_root, folder_id, image_id)
+
+        annotated = draw_pose_axes(
+            frame.rgb,
+            frame.intrinsics,
+            project_root,
+            folder_id,
+            image_id,
+            object_id,
+        )
+
+        reference = draw_reference(
+            frame.rgb,
+            frame.intrinsics,
+            project_root,
+            folder_id,
+            image_id,
+            object_id,
+        )
+
+        create_comparison(
+            annotated,
+            reference,
+            project_root,
+            folder_id,
+            image_id,
+            object_id,
+        )
+
+        print(f"[{index}/{len(cases)}] {folder_id}_{image_id}_obj_{object_id:06d}")
+
+
+if __name__ == "__main__":
+    main()
