@@ -26,7 +26,9 @@ def main():
     print("Position in camera coordinates, meters:")
     print(pose[:3, 3])
 
-    output_dir = project_root / "outputs"
+    output_dir = (
+        project_root / "outputs" / f"{folder_id}_{image_id}_obj_{object_id:06d}"
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = output_dir / (f"pose_{folder_id}_{image_id}_obj_{object_id:06d}.npy")
