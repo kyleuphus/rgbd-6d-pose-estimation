@@ -1,8 +1,9 @@
-import json
 import numpy as np
 import cv2
+
 from ycb_video import load_intrinsics, load_frame
 from pathlib import Path
+from pose_io import load_predicted_pose, load_reference_pose
 
 
 project_root = Path(__file__).resolve().parents[1]
@@ -24,7 +25,6 @@ rgb = frame.rgb.copy()
 
 def draw_pose_axes(
     rgb,
-    pose,
     intrinsics,
     project_root,
     folder_id,
@@ -44,8 +44,7 @@ def draw_pose_axes(
         ]
     )
 
-    R = pose[:3, :3]
-    t = pose[:3, 3]
+    R, t = load_predicted_pose(project_root, folder_id, image_id, object_id)
 
     pixels = []
 
@@ -81,23 +80,7 @@ def draw_reference(
     rgb, intrinsics, project_root, folder_id, image_id, object_id, axis_length=0.05
 ):
 
-    dataset_root = project_root / "data" / "ycbv"
-    scene_dir = Path(dataset_root) / "test" / f"{int(folder_id):06d}"
-    with (scene_dir / "scene_gt.json").open(encoding="utf-8") as file:
-        scene_gt = json.load(file)
-
-    annotations = scene_gt[str(int(image_id))]
-
-    R = None
-    t = None
-    for annotation in annotations:
-        if annotation["obj_id"] == object_id:
-            R = np.array(annotation["cam_R_m2c"], dtype=float).reshape(3, 3)
-            t = np.array(annotation["cam_t_m2c"], dtype=float) / 1000
-
-            break
-    else:
-        raise ValueError(f"Object {object_id} is missing from image {image_id}")
+    R, t = load_reference_pose(project_root, folder_id, image_id, object_id)
 
     points_object = np.array(
         [
@@ -160,7 +143,6 @@ def create_comparison(
 
 annotated = draw_pose_axes(
     rgb,
-    pose,
     intrinsics,
     project_root,
     folder_id,
