@@ -3,8 +3,9 @@ from pathlib import Path
 import numpy as np
 import argparse
 
-from ycb_video import load_frame, load_target
+from ycb_video import load_frame, load_mesh
 from foundation_pose_backend import FoundationPoseBackend
+from run_segmentation import construct_model, segment_images
 
 
 def run_frame(folder_id, image_id, object_id):
@@ -16,10 +17,14 @@ def run_frame(folder_id, image_id, object_id):
     dataset_root = project_root / "data" / "ycbv"
 
     frame = load_frame(dataset_root, folder_id, image_id)
-    mesh, mask = load_target(dataset_root, folder_id, image_id, object_id)
+    mesh = load_mesh(dataset_root, object_id)
+
+    segmenter = construct_model(project_root)
+    mask = segment_images(
+        segmenter, folder_id, image_id, [object_id], project_root, save_mask=True
+    )[object_id,]
 
     backend = FoundationPoseBackend(mesh)
-
     pose = backend.estimate(frame, mask)
 
     print("Object-to-camera transform:")
@@ -28,7 +33,10 @@ def run_frame(folder_id, image_id, object_id):
     print(pose[:3, 3])
 
     output_dir = (
-        project_root / "outputs" / f"{folder_id}_{image_id}_obj_{object_id:06d}"
+        project_root
+        / "outputs"
+        / "efficienttam"
+        / f"{folder_id}_{image_id}_obj_{object_id:06d}"
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 
