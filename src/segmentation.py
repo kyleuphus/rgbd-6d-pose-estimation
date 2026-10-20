@@ -23,17 +23,16 @@ class EfficientTAMSegmenter:
 
     def predict_mask(self, box_xyxy):
 
-        x, y, width, height = box_xyxy
-        input_box = np.array([x, y, x + width, y + height])
-
         masks, _, _ = self.predictor.predict(
             point_coords=None,
             point_labels=None,
-            box=input_box[None, :],
+            box=box_xyxy[None, :],
             multimask_output=False,
         )
 
         mask = masks[0].astype(bool)
 
-        if mask is not None:
-            return mask
+        if not mask.any():
+            raise ValueError("Segmentation returned an empty mask")
+
+        return mask
