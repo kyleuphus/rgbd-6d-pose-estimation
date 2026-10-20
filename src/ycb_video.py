@@ -90,6 +90,17 @@ def load_target(
     The mask suffix is the object's annotation index, not its object ID.
     A frame must contain exactly one instance of the requested object.
     """
+    mask = load_visible_mask(dataset_root, folder_id, image_id, object_id)
+    return load_mesh(dataset_root, object_id), mask
+
+
+def load_visible_mask(
+    dataset_root: str | Path,
+    folder_id: str,
+    image_id: str,
+    object_id: int,
+) -> NDArray[np.bool_]:
+    """Load the selected instance's visible mask without reloading its mesh."""
     dataset_root = Path(dataset_root)
     scene_dir = dataset_root / "test" / f"{int(folder_id):06d}"
     image_number = int(image_id)
@@ -127,6 +138,12 @@ def load_target(
     if not mask.any():
         raise ValueError(f"Object {object_id} has no visible pixels in {mask_path}")
 
+    return mask
+
+
+def load_mesh(dataset_root: str | Path, object_id: int) -> trimesh.Trimesh:
+    """Load a BOP object mesh in meters."""
+    dataset_root = Path(dataset_root)
     # Support the standard BOP layout and a separately extracted models archive.
     mesh_filename = f"obj_{object_id:06d}.ply"
     mesh_paths = [
@@ -145,4 +162,4 @@ def load_target(
         raise ValueError(f"Expected a triangle mesh in {mesh_path}")
     mesh.apply_scale(0.001)  # BOP model coordinates are in millimeters.
 
-    return mesh, mask
+    return mesh

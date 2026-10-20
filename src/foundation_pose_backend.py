@@ -14,10 +14,10 @@ from estimater import FoundationPose, ScorePredictor, PoseRefinePredictor
 
 
 class FoundationPoseBackend:
-    def __init__(self, mesh: trimesh.Trimesh):
+    def __init__(self, mesh: trimesh.Trimesh, *, scorer=None, refiner=None, glctx=None):
         self.mesh = mesh
-        self.scorer = ScorePredictor()
-        self.refiner = PoseRefinePredictor()
+        self.scorer = scorer if scorer is not None else ScorePredictor()
+        self.refiner = refiner if refiner is not None else PoseRefinePredictor()
 
         self.estimator = FoundationPose(
             model_pts=mesh.vertices,
@@ -25,6 +25,7 @@ class FoundationPoseBackend:
             mesh=mesh,
             scorer=self.scorer,
             refiner=self.refiner,
+            glctx=glctx,
             debug=0,
             debug_dir=str(
                 Path(__file__).resolve().parents[1] / "outputs" / "foundationspose"

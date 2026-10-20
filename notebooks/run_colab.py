@@ -18,9 +18,9 @@
 #
 # Edit only **CASE_GROUPS** to choose your folders, images, and objects. Each group runs every selected image/object combination within that folder. Use separate groups when different images contain different objects. IDs can be integers or strings, with or without leading zeros. Cases listed more than once run only once.
 #
-# The snapshot contains older source code and sample inputs. The run cell pulls your latest committed and pushed source by default; it does not download additional dataset frames. Set **UPDATE_SOURCE = False** only when the restored source already accepts the current command-line arguments.
+# The snapshot contains older source code and sample inputs. The run cell pulls your latest committed and pushed source by default; it does not download additional dataset frames. Commit and push the updated batch runner, backend, and data loaders before running. Set **UPDATE_SOURCE = False** only when those changes are already present in the runtime.
 #
-# Each case uses the existing single-frame script in the cached Python/CUDA environment. The backend is initialized separately for each case. Failed cases are recorded and the remaining cases continue. The final cell derives the download contents from this run's successful cases.
+# The batch runs in one Python process in the cached Python/CUDA environment. Model weights and the renderer load once; each object's mesh and backend are prepared once and reused across its frames. Cases run grouped by object, with independent registration on every frame (no tracking). GPU-synchronized timings separate imports, model/object setup, data loading, registration, and saving. The first registration for each object is flagged because it may include warm-up. Failed cases are recorded and the remaining cases continue. The final cell downloads successful predictions, timings, selected cases, and the console log.
 
 
 # %%
@@ -89,7 +89,7 @@ for case in CASES:
 
 
 # %%
-# 4. Run all selected cases in the saved Python/CUDA environment.
+# 4. Run the batch once, sharing model weights and each object's backend.
 import json
 import shlex
 import subprocess
@@ -101,59 +101,67 @@ if UPDATE_SOURCE:
         check=True,
     )
 
-# Keep inference in the restored environment, not the notebook's Python kernel.
-SETUP = """set -eo pipefail
-source /content/foundationpose-setup.sh > /dev/null
-export PYTHONPATH='/content/uwrt/FoundationPose/mycpp/build:/content/uwrt/FoundationPose'
-cd /content/uwrt/FoundationPose
-"""
-gpu_check = "import torch; assert torch.cuda.is_available(), 'Select a T4 GPU runtime'"
-subprocess.run(
-    ['bash', '-c', SETUP + shlex.join(['python', '-c', gpu_check])],
-    check=True,
-)
+runner = PROJECT_ROOT / 'src/run_batch.py'
+if not runner.is_file():
+    raise FileNotFoundError(
+        'run_batch.py is missing. Commit and push the updated source, then rerun this cell.'
+    )
 
 run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
 BATCH_DIR = PROJECT_ROOT / 'outputs' / 'batches' / run_id
 BATCH_DIR.mkdir(parents=True, exist_ok=True)
+CASES_PATH = BATCH_DIR / 'cases.json'
 RESULTS_PATH = BATCH_DIR / 'results.json'
+TIMINGS_PATH = BATCH_DIR / 'timings.json'
+LOG_PATH = BATCH_DIR / 'batch.log'
+CASES_PATH.write_text(json.dumps(CASES, indent=2) + '\n', encoding='utf-8')
 RESULTS = []
 
-for index, case in enumerate(CASES, start=1):
-    case_name = (
-        f"{case['folder_id']}_{case['image_id']}_obj_{case['object_id']:06d}"
+# Run in the restored environment, with unbuffered live progress.
+setup = """set -eo pipefail
+source /content/foundationpose-setup.sh > /dev/null
+export PYTHONPATH='/content/uwrt/FoundationPose/mycpp/build:/content/uwrt/FoundationPose'
+cd /content/uwrt/FoundationPose
+"""
+command = [
+    'python', '-u', str(runner),
+    '--project-root', str(PROJECT_ROOT),
+    '--cases-file', str(CASES_PATH),
+    '--results-file', str(RESULTS_PATH),
+]
+print(f'Running {len(CASES)} case(s) in one Python process.', flush=True)
+with LOG_PATH.open('w', encoding='utf-8') as log:
+    process = subprocess.Popen(
+        ['bash', '-c', setup + 'exec ' + shlex.join(command)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
     )
-    pose_path = PROJECT_ROOT / 'outputs' / case_name / f'pose_{case_name}.npy'
-    command = [
-        'python', str(PROJECT_ROOT / 'src/run_frame.py'),
-        '--folder-id', case['folder_id'],
-        '--image-id', case['image_id'],
-        '--object-id', str(case['object_id']),
-    ]
-    print(f'\n[{index}/{len(CASES)}] {case_name}', flush=True)
-    completed = subprocess.run(['bash', '-c', SETUP + shlex.join(command)])
+    try:
+        for line in process.stdout:
+            print(line, end='', flush=True)
+            log.write(line)
+            log.flush()
+        returncode = process.wait()
+    except KeyboardInterrupt:
+        # The shell uses exec, so this terminates the actual inference process.
+        process.terminate()
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+        print('Stopped. Completed cases remain available in the download cell.')
+        raise
+    finally:
+        process.stdout.close()
+        if RESULTS_PATH.is_file():
+            RESULTS = json.loads(RESULTS_PATH.read_text(encoding='utf-8'))
 
-    success = completed.returncode == 0 and pose_path.is_file()
-    result = {
-        **case,
-        'status': 'ok' if success else 'failed',
-        'returncode': completed.returncode,
-        'pose_path': str(pose_path) if success else None,
-    }
-    if not success:
-        result['error'] = (
-            f'Inference exited with code {completed.returncode}.'
-            if completed.returncode != 0
-            else f'Expected prediction was not created: {pose_path}'
-        )
-    RESULTS.append(result)
-    # Save progress after each case, including failures.
-    RESULTS_PATH.write_text(json.dumps(RESULTS, indent=2) + '\n', encoding='utf-8')
-    print(f"  {result['status']}", flush=True)
-
-successful = sum(result['status'] == 'ok' for result in RESULTS)
-print(f'\nFinished: {successful}/{len(RESULTS)} succeeded.')
-print(f'Run summary: {RESULTS_PATH}')
+if returncode != 0:
+    raise RuntimeError(f'Batch exited with code {returncode}; see the output above or {LOG_PATH}.')
+print(f'Batch files: {BATCH_DIR}')
 
 
 # %%
@@ -168,6 +176,9 @@ successful_results = [result for result in RESULTS if result['status'] == 'ok']
 archive_path = BATCH_DIR / 'predictions.zip'
 with ZipFile(archive_path, 'w', compression=ZIP_DEFLATED) as archive:
     archive.write(RESULTS_PATH, arcname='results.json')
+    for extra_path in (TIMINGS_PATH, CASES_PATH, LOG_PATH):
+        if extra_path.is_file():
+            archive.write(extra_path, arcname=extra_path.name)
     for result in successful_results:
         pose_path = Path(result['pose_path'])
         archive.write(
