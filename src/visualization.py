@@ -176,7 +176,13 @@ def main():
     run_dir = args.run_dir
     pose_root = args.pose_root if args.pose_root is not None else run_dir
 
-    cases = json.loads((run_dir / "cases.json").read_text(encoding="utf-8"))
+    results = json.loads((run_dir / "results.json").read_text(encoding="utf-8"))
+    cases = [result for result in results if result["status"] == "ok"]
+
+    print(
+        f"Generating {len(cases)} comparisons; "
+        f"skipping {len(results) - len(cases)} failed cases."
+    )
 
     for index, case in enumerate(cases, start=1):
         folder_id = f"{int(case['folder_id']):06d}"
