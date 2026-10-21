@@ -17,15 +17,15 @@ def segment_image(rgb, model, classes):  # classes = [yolo class ids]
     return results
 
 
-def pair_masks(results, classes):  # classes = [yolo class ids]
+def pair_masks(results):  # classes = [yolo class ids]
     result = results[0]
     pairs = defaultdict(list)  # yolo class_id: [masks]
 
     if result.boxes is not None and result.masks is not None:
-        for i, class_id in enumerate(result.boxes.cls):
-            if int(class_id.item()) in classes.keys():
-                mask = result.masks.data[i].cpu().numpy().astype(bool)
-                pairs[classes[int(class_id.item())]].append(mask)
+        for i, class_tensor in enumerate(result.boxes.cls):
+            class_id = int(class_tensor.item())
+            mask = result.masks.data[i].cpu().numpy().astype(bool)
+            pairs[class_id].append(mask)
 
     return pairs
 
