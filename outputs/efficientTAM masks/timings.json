@@ -1,0 +1,35 @@
+{
+  "selected": 50,
+  "object_setup_seconds": {
+    "1": 14.354360870000164,
+    "6": 9.35606298499988,
+    "14": 11.678376415000002,
+    "19": 9.654283548000421,
+    "20": 10.294476562000455
+  },
+  "mask_source": "efficienttam",
+  "box_source": "scene_gt_info.bbox_visib",
+  "segmentation_device": "cpu",
+  "pose_output_root": "/content/uwrt/pose-estimation/outputs/efficienttam",
+  "image_segmentation_seconds": {
+    "000048_000001": 6.363717947000168,
+    "000048_001074": 5.969744656999865,
+    "000048_001104": 5.603422875999968,
+    "000048_001132": 5.349371565000183,
+    "000048_001571": 5.3889372590001585,
+    "000048_001587": 5.361507425000127,
+    "000048_001619": 5.104785087999971,
+    "000048_001645": 5.2380134899999575,
+    "000048_002066": 5.169467005000115,
+    "000048_002160": 5.145503815000211
+  },
+  "successful": 50,
+  "failed": 0,
+  "elapsed_seconds": 337.9478158979996,
+  "mean_registration_seconds": 4.321230869200044,
+  "mean_registration_after_first_per_object_seconds": 4.30151679897784,
+  "import_seconds": 8.702496784999767,
+  "gpu": "Tesla T4",
+  "model_setup_seconds": 0.7492940560000534,
+  "segmentation_setup_seconds": 1.579555634999906
+}

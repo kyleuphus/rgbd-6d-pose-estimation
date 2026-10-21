@@ -1,3 +1,6 @@
+"""Evaluate saved poses for one run without rerunning inference."""
+
+import argparse
 import csv
 import json
 from pathlib import Path
@@ -15,7 +18,7 @@ FIELDS = [
 ]
 
 
-def evaluate_cases(project_root, cases):
+def evaluate_cases(project_root, cases, pose_root=None):
     rows = []
 
     for case in cases:
@@ -24,7 +27,7 @@ def evaluate_cases(project_root, cases):
         object_id = int(case["object_id"])
 
         rotation_deg, translation_mm = calculate_error(
-            project_root, folder_id, image_id, object_id
+            project_root, folder_id, image_id, object_id, pose_root=pose_root
         )
 
         rows.append(
@@ -99,14 +102,34 @@ def select_inspection_cases(rows):
 
 
 def main():
-    project_root = Path(__file__).resolve().parents[1]
-    outputs = project_root / "outputs"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--project-root", type=Path, default=Path(__file__).resolve().parents[1]
+    )
+    parser.add_argument(
+        "--run-dir",
+        type=Path,
+        help=(
+            "Directory containing cases.json; evaluation.csv is saved here "
+            "(default: PROJECT_ROOT/outputs)"
+        ),
+    )
+    parser.add_argument(
+        "--pose-root",
+        type=Path,
+        help="Directory containing the per-case pose folders (default: run directory)",
+    )
+    args = parser.parse_args()
+    project_root = args.project_root
+    outputs = args.run_dir if args.run_dir is not None else project_root / "outputs"
+    pose_root = args.pose_root if args.pose_root is not None else outputs
     cases = json.loads((outputs / "cases.json").read_text(encoding="utf-8"))
 
-    rows = evaluate_cases(project_root, cases)
+    rows = evaluate_cases(project_root, cases, pose_root=pose_root)
     assert len(rows) == len(cases), "Expected one row per case"
 
     write_csv(rows, outputs / "evaluation.csv")
+    print(f"Evaluation: {outputs / 'evaluation.csv'} ({len(rows)} cases)")
     summarize_by_object(rows)
     inspection_cases = select_inspection_cases(rows)
     for case in inspection_cases:

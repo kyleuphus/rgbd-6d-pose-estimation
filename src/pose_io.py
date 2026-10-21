@@ -3,10 +3,12 @@ import numpy as np
 from pathlib import Path
 
 
-def load_predicted_pose(project_root, folder_id, image_id, object_id):
+def load_predicted_pose(project_root, folder_id, image_id, object_id, pose_root=None):
+    pose_root = (
+        Path(pose_root) if pose_root is not None else Path(project_root) / "outputs"
+    )
     pose_path = (
-        project_root
-        / "outputs"
+        pose_root
         / f"{folder_id}_{image_id}_obj_{object_id:06d}"
         / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}.npy"
     )

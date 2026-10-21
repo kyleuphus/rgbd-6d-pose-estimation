@@ -44,21 +44,33 @@ def normalize_cases(cases):
 def run_batch(cases, project_root, results_path, output_root=None):
     started = perf_counter()
     cases = normalize_cases(cases)
-    project_root, results_path = Path(project_root), Path(results_path)
+    project_root, results_path = Path(project_root), Path(results_path).resolve()
+    if results_path.exists():
+        raise FileExistsError(f"Run already exists: {results_path}. Choose a new run folder.")
+    run_dir = results_path.parent
     output_root = (
-        Path(output_root)
+        Path(output_root).resolve()
         if output_root is not None
-        else project_root / "outputs" / "efficienttam"
+        else run_dir
     )
+    mask_root = run_dir / "masks"
+
+    def saved_path(path):
+        # Paths in a run remain usable after downloading or renaming its folder.
+        path = Path(path)
+        return str(path.relative_to(run_dir)) if path.is_relative_to(run_dir) else str(path)
+
+    write_json(run_dir / "cases.json", cases)
     summary_path = results_path.with_name("timings.json")
     results = []
     summary = {
+        "format_version": 1,
         "selected": len(cases),
         "object_setup_seconds": {},
         "mask_source": "efficienttam",
         "box_source": "scene_gt_info.bbox_visib",
         "segmentation_device": "cpu",
-        "pose_output_root": str(output_root),
+        "pose_output_root": saved_path(output_root),
         "image_segmentation_seconds": {},
     }
 
@@ -143,6 +155,7 @@ def run_batch(cases, project_root, results_path, output_root=None):
                 by_image[(folder_id, image_id)],
                 project_root,
                 save_mask=True,
+                output_dir=mask_root,
             )
             return masks, None
         except Exception as error:
@@ -214,14 +227,8 @@ def run_batch(cases, project_root, results_path, output_root=None):
                     or not mask.any()
                 ):
                     raise ValueError("Expected a nonempty boolean mask matching depth")
-                mask_path = (
-                    project_root
-                    / "outputs"
-                    / "segmentation"
-                    / "efficienttam"
-                    / f"{name}_mask.npy"
-                )
-                result["mask_path"] = str(mask_path)
+                mask_path = mask_root / f"{name}_mask.npy"
+                result["mask_path"] = saved_path(mask_path)
 
                 # CUDA work is asynchronous: synchronize around the timed registration.
                 torch.cuda.synchronize()
@@ -238,7 +245,7 @@ def run_batch(cases, project_root, results_path, output_root=None):
                 pose_path = output_root / name / f"pose_{name}.npy"
                 pose_path.parent.mkdir(parents=True, exist_ok=True)
                 np.save(pose_path, pose)
-                result.update(status="ok", pose_path=str(pose_path))
+                result.update(status="ok", pose_path=saved_path(pose_path))
                 result["save_seconds"] = perf_counter() - save_started
             except Exception as error:
                 result["error"] = f"{type(error).__name__}: {error}"
@@ -285,18 +292,21 @@ def run_batch(cases, project_root, results_path, output_root=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cases-file", type=Path, required=True)
-    parser.add_argument("--results-file", type=Path, required=True)
+    destination = parser.add_mutually_exclusive_group(required=True)
+    destination.add_argument("--run-dir", type=Path, help="New folder for this run's outputs")
+    destination.add_argument("--results-file", type=Path, help="Legacy alternative to --run-dir")
     parser.add_argument(
         "--project-root", type=Path, default=Path(__file__).resolve().parents[1]
     )
     parser.add_argument(
         "--output-root",
         type=Path,
-        help="Pose output directory (default: PROJECT_ROOT/outputs/efficienttam)",
+        help="Override the pose directory (default: run directory)",
     )
     args = parser.parse_args()
     cases = json.loads(args.cases_file.read_text(encoding="utf-8"))
-    results = run_batch(cases, args.project_root, args.results_file, args.output_root)
+    results_path = args.run_dir / "results.json" if args.run_dir is not None else args.results_file
+    results = run_batch(cases, args.project_root, results_path, args.output_root)
     if not any(result["status"] == "ok" for result in results):
         raise SystemExit(1)
 

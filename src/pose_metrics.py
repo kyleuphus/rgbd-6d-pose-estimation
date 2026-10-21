@@ -19,9 +19,9 @@ def translation_error_mm(t_predicted, t_reference):
     return error
 
 
-def calculate_error(project_root, folder_id, image_id, object_id):
+def calculate_error(project_root, folder_id, image_id, object_id, pose_root=None):
     R_predicted, t_predicted = load_predicted_pose(
-        project_root, folder_id, image_id, object_id
+        project_root, folder_id, image_id, object_id, pose_root=pose_root
     )
     R_reference, t_reference = load_reference_pose(
         project_root, folder_id, image_id, object_id

@@ -20,7 +20,8 @@ def construct_model(project_root):
 
 
 def segment_images(
-    segmenter, folder_id, image_id, object_ids, project_root, save_mask=False
+    segmenter, folder_id, image_id, object_ids, project_root, save_mask=False,
+    output_dir=None,
 ):
 
     project_root = Path(project_root)
@@ -64,7 +65,10 @@ def segment_images(
         masks[object_id] = segmenter.predict_mask(box)
 
     if save_mask:
-        mask_dir = project_root / "outputs" / "segmentation" / "efficienttam"
+        mask_dir = (
+            Path(output_dir) if output_dir is not None
+            else project_root / "outputs" / "segmentation" / "efficienttam"
+        )
         mask_dir.mkdir(parents=True, exist_ok=True)
 
         for object_id, mask in masks.items():
