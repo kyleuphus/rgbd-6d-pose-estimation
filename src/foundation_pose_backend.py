@@ -47,3 +47,13 @@ class FoundationPoseBackend:
         )
 
         return np.asarray(pose, dtype=np.float32)
+
+    def track(self, frame):
+        pose = self.estimator.track_one(
+            rgb=frame.rgb,
+            depth=frame.depth,
+            K=frame.intrinsics.K,
+            iteration=2,
+        )
+
+        return np.asarray(pose, dtype=np.float32)
