@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import json
+import argparse
 
 from ycb_video import load_intrinsics, load_frame
 from pathlib import Path
@@ -15,6 +16,8 @@ def draw_pose_axes(
     image_id,
     object_id,
     axis_length=0.05,
+    *,
+    pose_root,
 ):
 
     rgb = rgb.copy()
@@ -28,7 +31,9 @@ def draw_pose_axes(
         ]
     )
 
-    R, t = load_predicted_pose(project_root, folder_id, image_id, object_id)
+    R, t = load_predicted_pose(
+        project_root, folder_id, image_id, object_id, pose_root=pose_root
+    )
 
     pixels = []
 
@@ -64,8 +69,7 @@ def draw_pose_axes(
     )
 
     write_path = (
-        project_root
-        / "outputs"
+        pose_root
         / f"{folder_id}_{image_id}_obj_{object_id:06d}"
         / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}_annotated.png"
     )
@@ -75,7 +79,15 @@ def draw_pose_axes(
 
 
 def draw_reference(
-    rgb, intrinsics, project_root, folder_id, image_id, object_id, axis_length=0.05
+    rgb,
+    intrinsics,
+    project_root,
+    folder_id,
+    image_id,
+    object_id,
+    axis_length=0.05,
+    *,
+    pose_root,
 ):
 
     R, t = load_reference_pose(project_root, folder_id, image_id, object_id)
@@ -129,8 +141,7 @@ def draw_reference(
     )
 
     write_path = (
-        project_root
-        / "outputs"
+        pose_root
         / f"{folder_id}_{image_id}_obj_{object_id:06d}"
         / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}_reference.png"
     )
@@ -140,13 +151,12 @@ def draw_reference(
 
 
 def create_comparison(
-    annotated, reference, project_root, folder_id, image_id, object_id
+    annotated, reference, project_root, folder_id, image_id, object_id, *, pose_root
 ):
     combined = np.hstack((annotated, reference))
 
     write_path = (
-        project_root
-        / "outputs"
+        pose_root
         / f"{folder_id}_{image_id}_obj_{object_id:06d}"
         / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}_comparison.png"
     )
@@ -158,9 +168,15 @@ def main():
     project_root = Path(__file__).resolve().parents[1]
     dataset_root = project_root / "data" / "ycbv"
 
-    cases = json.loads(
-        (project_root / "outputs" / "cases.json").read_text(encoding="utf-8")
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run-dir", type=Path, required=True)
+    parser.add_argument("--pose-root", type=Path)
+    args = parser.parse_args()
+
+    run_dir = args.run_dir
+    pose_root = args.pose_root if args.pose_root is not None else run_dir
+
+    cases = json.loads((run_dir / "cases.json").read_text(encoding="utf-8"))
 
     for index, case in enumerate(cases, start=1):
         folder_id = f"{int(case['folder_id']):06d}"
@@ -176,6 +192,7 @@ def main():
             folder_id,
             image_id,
             object_id,
+            pose_root=pose_root,
         )
 
         reference = draw_reference(
@@ -185,6 +202,7 @@ def main():
             folder_id,
             image_id,
             object_id,
+            pose_root=pose_root,
         )
 
         create_comparison(
@@ -194,6 +212,7 @@ def main():
             folder_id,
             image_id,
             object_id,
+            pose_root=pose_root,
         )
 
         print(f"[{index}/{len(cases)}] {folder_id}_{image_id}_obj_{object_id:06d}")
