@@ -38,6 +38,10 @@ class FoundationPoseBackend:
         if mask.shape != frame.depth.shape:
             raise ValueError("Mask must match the depth image dimensions")
 
+        # Registration is independent of any previous frame. FoundationPose can
+        # return a fallback matrix without initializing pose_last when filtered
+        # depth is insufficient; that must not be reported as a successful pose.
+        self.estimator.pose_last = None
         pose = self.estimator.register(
             K=frame.intrinsics.K,
             rgb=frame.rgb,
@@ -45,6 +49,8 @@ class FoundationPoseBackend:
             ob_mask=mask,
             iteration=5,
         )
+        if self.estimator.pose_last is None:
+            raise RuntimeError("Registration did not initialize a pose after depth filtering")
 
         return np.asarray(pose, dtype=np.float32)
 

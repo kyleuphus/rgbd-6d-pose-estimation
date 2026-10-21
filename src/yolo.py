@@ -28,20 +28,3 @@ def pair_masks(results):  # classes = [yolo class ids]
             pairs[class_id].append(mask)
 
     return pairs
-
-
-# project_root = Path(__file__).resolve().parents[1]
-# dataset_root = Path(project_root / "data" / "ycbv")
-# folder_id = "000048"
-# image_id = "000001"
-#
-# rgb = load_frame(dataset_root, folder_id, image_id).rgb
-# model = load_yolo()
-#
-# results = segment_image(rgb, model, [41])
-# classes = {41: "obj_000014"}
-#
-# pairs = pair_masks(results, classes)
-# results[0].show()
-#
-# print(len(pairs["obj_000014"]))
