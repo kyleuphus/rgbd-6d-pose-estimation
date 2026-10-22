@@ -168,7 +168,7 @@ def main():
 
     records = run_sequence(
         meshes={5: mesh},
-        object_id_to_class_id={5: 39},
+        object_id_to_class_id={5: 55},
         conf=args.confidence,
         run_dir=args.run_dir,
         max_frames=args.max_frames,
