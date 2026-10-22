@@ -50,7 +50,9 @@ class FoundationPoseBackend:
             iteration=5,
         )
         if self.estimator.pose_last is None:
-            raise RuntimeError("Registration did not initialize a pose after depth filtering")
+            raise RuntimeError(
+                "Registration did not initialize a pose after depth filtering"
+            )
 
         return np.asarray(pose, dtype=np.float32)
 
@@ -63,3 +65,9 @@ class FoundationPoseBackend:
         )
 
         return np.asarray(pose, dtype=np.float32)
+
+    def is_registered(self):
+        return self.estimator.pose_last is not None
+
+    def reset(self):
+        self.estimator.pose_last = None

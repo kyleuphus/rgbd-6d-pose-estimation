@@ -10,14 +10,14 @@ def load_yolo():
     return model
 
 
-def segment_image(rgb, model, classes):  # classes = [yolo class ids]
+def segment_image(rgb, model, classes, conf=0.5):  # classes = [yolo class ids]
     bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-    results = model(bgr, conf=0.05, classes=classes, retina_masks=True)
+    results = model(bgr, conf=conf, classes=classes, retina_masks=True)
 
     return results
 
 
-def pair_masks(results):  # classes = [yolo class ids]
+def pair_masks(results):
     result = results[0]
     pairs = defaultdict(list)  # yolo class_id: [masks]
 

@@ -1,137 +1,54 @@
-import numpy as np
-import cv2
-import json
+"""RGB pose overlays, with a command for visualizing saved YCB batch runs."""
+
 import argparse
-
-from ycb_video import load_intrinsics, load_frame
+import json
 from pathlib import Path
-from pose_io import load_predicted_pose, load_reference_pose
+
+import cv2
+import numpy as np
 
 
-def draw_pose_axes(
-    rgb,
-    intrinsics,
-    project_root,
-    folder_id,
-    image_id,
-    object_id,
-    axis_length=0.05,
-    *,
-    pose_root,
-):
+def overlay_pose_axes(rgb, intrinsics, pose, axis_length=0.05):
+    """Return an RGB copy with XYZ axes for a 4x4 object-to-camera pose.
 
-    rgb = rgb.copy()
+    intrinsics must expose a 3x3 K matrix. Axis length uses the pose's units
+    (meters for this project's poses). Axes behind the camera are skipped.
+    """
+    pose = np.asarray(pose, dtype=float)
+    if pose.shape != (4, 4) or not np.isfinite(pose).all():
+        raise ValueError("Pose must be a finite 4x4 object-to-camera matrix")
+    if not np.isfinite(axis_length) or axis_length <= 0:
+        raise ValueError("Axis length must be positive and finite")
 
     points_object = np.array(
-        [
-            [0, 0, 0],  # origin
-            [axis_length, 0, 0],  # +X endpoint
-            [0, axis_length, 0],  # +Y endpoint
-            [0, 0, axis_length],  # +Z endpoint
-        ]
+        [[0, 0, 0], [axis_length, 0, 0], [0, axis_length, 0], [0, 0, axis_length]]
     )
-
-    R, t = load_predicted_pose(
-        project_root, folder_id, image_id, object_id, pose_root=pose_root
-    )
-
+    R, t = pose[:3, :3], pose[:3, 3]
     pixels = []
-
     for point_object in points_object:
         point_camera = R @ point_object + t
-
         if point_camera[2] <= 0:
             pixels.append(None)
             continue
+        projected = intrinsics.K @ point_camera
+        pixels.append(tuple(np.rint(projected[:2] / projected[2]).astype(int)))
 
-        point_projected = intrinsics.K @ point_camera
-        coordinate = (point_projected[:2] / point_projected[2]).astype(int)
-        pixels.append(coordinate)
-
-    cv2.circle(img=rgb, center=pixels[0], radius=0, color=(0, 0, 0), thickness=-1)
-    cv2.line(img=rgb, pt1=pixels[0], pt2=pixels[1], color=(255, 0, 0))
-    cv2.line(img=rgb, pt1=pixels[0], pt2=pixels[2], color=(0, 255, 0))
-    cv2.line(img=rgb, pt1=pixels[0], pt2=pixels[3], color=(0, 0, 255))
-
-    img_bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-
-    cv2.rectangle(img_bgr, (8, 8), (130, 45), (0, 0, 0), -1)
-
-    cv2.putText(
-        img_bgr,
-        "Predicted",
-        (15, 35),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.8,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA,
-    )
-
-    write_path = (
-        pose_root
-        / f"{folder_id}_{image_id}_obj_{object_id:06d}"
-        / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}_annotated.png"
-    )
-    cv2.imwrite(write_path, img_bgr)
-
-    return img_bgr
-
-
-def draw_reference(
-    rgb,
-    intrinsics,
-    project_root,
-    folder_id,
-    image_id,
-    object_id,
-    axis_length=0.05,
-    *,
-    pose_root,
-):
-
-    R, t = load_reference_pose(project_root, folder_id, image_id, object_id)
-
-    points_object = np.array(
-        [
-            [0, 0, 0],  # origin
-            [axis_length, 0, 0],  # +X endpoint
-            [0, axis_length, 0],  # +Y endpoint
-            [0, 0, axis_length],  # +Z endpoint
-        ]
-    )
-
-    pixels = []
-
-    for point_object in points_object:
-        point_camera = R @ point_object + t
-
-        if point_camera[2] <= 0:
-            pixels.append(None)
-            continue
-
-        point_projected = intrinsics.K @ point_camera
-        coordinate = (point_projected[:2] / point_projected[2]).astype(int)
-        pixels.append(coordinate)
-
-    img = rgb.copy()
-    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-
+    image = rgb.copy()
     if pixels[0] is not None:
-        origin = tuple(pixels[0])
-        cv2.circle(img, origin, radius=4, color=(0, 0, 0), thickness=-1)
-
-        for endpoint, color in zip(pixels[1:], colors):
+        origin = pixels[0]
+        cv2.circle(image, origin, radius=4, color=(0, 0, 0), thickness=-1)
+        for endpoint, color in zip(pixels[1:], [(255, 0, 0), (0, 255, 0), (0, 0, 255)]):
             if endpoint is not None:
-                cv2.line(img=img, pt1=origin, pt2=endpoint, color=color)
+                cv2.line(image, origin, endpoint, color=color)
+    return image
 
-    img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-    cv2.rectangle(img_bgr, (8, 8), (140, 45), (0, 0, 0), -1)
-
+def _label_image(rgb, label):
+    image = rgb.copy()
+    cv2.rectangle(image, (8, 8), (140, 45), (0, 0, 0), -1)
     cv2.putText(
-        img_bgr,
-        "Reference",
+        image,
+        label,
         (15, 35),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.8,
@@ -139,32 +56,24 @@ def draw_reference(
         2,
         cv2.LINE_AA,
     )
-
-    write_path = (
-        pose_root
-        / f"{folder_id}_{image_id}_obj_{object_id:06d}"
-        / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}_reference.png"
-    )
-    cv2.imwrite(write_path, img_bgr)
-
-    return img_bgr
+    return image
 
 
-def create_comparison(
-    annotated, reference, project_root, folder_id, image_id, object_id, *, pose_root
-):
-    combined = np.hstack((annotated, reference))
+def draw_reference(rgb, intrinsics, pose):
+    """Return an RGB reference image with pose axes and a Reference label."""
+    return _label_image(overlay_pose_axes(rgb, intrinsics, pose), "Reference")
 
-    write_path = (
-        pose_root
-        / f"{folder_id}_{image_id}_obj_{object_id:06d}"
-        / f"pose_{folder_id}_{image_id}_obj_{object_id:06d}_comparison.png"
-    )
 
-    cv2.imwrite(write_path, combined)
+def create_comparison(annotated, reference):
+    """Return the annotated and reference images side by side, in that order."""
+    return np.hstack((annotated, reference))
 
 
 def main():
+    # Dataset-specific loading and saving belong to this command, not the helpers.
+    from ycb_video import load_frame
+    from pose_io import load_predicted_pose, load_reference_pose
+
     project_root = Path(__file__).resolve().parents[1]
     dataset_root = project_root / "data" / "ycbv"
 
@@ -175,53 +84,52 @@ def main():
 
     run_dir = args.run_dir
     pose_root = args.pose_root if args.pose_root is not None else run_dir
-
     results = json.loads((run_dir / "results.json").read_text(encoding="utf-8"))
     cases = [result for result in results if result["status"] == "ok"]
-
     print(
         f"Generating {len(cases)} comparisons; "
         f"skipping {len(results) - len(cases)} failed cases."
     )
 
+    def make_pose(rotation, translation):
+        pose = np.eye(4)
+        pose[:3, :3] = rotation
+        pose[:3, 3] = translation
+        return pose
+
     for index, case in enumerate(cases, start=1):
         folder_id = f"{int(case['folder_id']):06d}"
         image_id = f"{int(case['image_id']):06d}"
         object_id = int(case["object_id"])
-
         frame = load_frame(dataset_root, folder_id, image_id)
 
-        annotated = draw_pose_axes(
-            frame.rgb,
-            frame.intrinsics,
-            project_root,
-            folder_id,
-            image_id,
-            object_id,
-            pose_root=pose_root,
+        predicted_pose = make_pose(
+            *load_predicted_pose(
+                project_root, folder_id, image_id, object_id, pose_root=pose_root
+            )
         )
-
-        reference = draw_reference(
-            frame.rgb,
-            frame.intrinsics,
-            project_root,
-            folder_id,
-            image_id,
-            object_id,
-            pose_root=pose_root,
+        reference_pose = make_pose(
+            *load_reference_pose(project_root, folder_id, image_id, object_id)
         )
-
-        create_comparison(
-            annotated,
-            reference,
-            project_root,
-            folder_id,
-            image_id,
-            object_id,
-            pose_root=pose_root,
+        annotated = _label_image(
+            overlay_pose_axes(frame.rgb, frame.intrinsics, predicted_pose), "Predicted"
         )
+        reference = draw_reference(frame.rgb, frame.intrinsics, reference_pose)
+        combined = create_comparison(annotated, reference)
 
-        print(f"[{index}/{len(cases)}] {folder_id}_{image_id}_obj_{object_id:06d}")
+        name = f"{folder_id}_{image_id}_obj_{object_id:06d}"
+        output_dir = pose_root / name
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for suffix, image in (
+            ("annotated", annotated),
+            ("reference", reference),
+            ("comparison", combined),
+        ):
+            path = output_dir / f"pose_{name}_{suffix}.png"
+            if not cv2.imwrite(str(path), cv2.cvtColor(image, cv2.COLOR_RGB2BGR)):
+                raise OSError(f"Could not save visualization: {path}")
+
+        print(f"[{index}/{len(cases)}] {name}")
 
 
 if __name__ == "__main__":
